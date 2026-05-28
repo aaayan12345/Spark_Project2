@@ -3,11 +3,22 @@
 Q1(4): Data Agent Demo — Gradio Web Interface
 ==============================================
 Fine-tuned Qwen3.5-0.8B with LoRA on DataMind-12K.
-Pattern follows Qwen3 official web_demo.py with gr.State history management.
+Features: file upload (CSV/Excel) + code highlight & execute.
 """
 
 import sys
+import os
 import gc
+import re
+import io
+import base64
+import traceback
+import subprocess
+import tempfile
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from peft import PeftModel
@@ -23,8 +34,9 @@ except ImportError:
 # Configuration
 # ============================================================
 
-MODEL_NAME = "/root/Hadoop_Project2/qwen_model_local"
-LORA_PATH = "/root/Hadoop_Project2/output/qwen-datamind-lora-v2/best_model"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_NAME = os.path.join(BASE_DIR, "..", "qwen_model_local")
+LORA_PATH = os.path.join(BASE_DIR, "output", "qwen-datamind-lora-v2", "best_model")
 MAX_NEW_TOKENS = 512
 TEMPERATURE = 0.7
 TOP_P = 0.9
@@ -32,16 +44,17 @@ MAX_CONTEXT_TOKENS = 2048
 
 SYSTEM_PROMPT = (
     "You are a data analysis and data science assistant. "
-    "Help users analyze data, write Python code, create visualizations, "
-    "and interpret results."
+    "Help users analyze data, write Python code (in ```python blocks), "
+    "create visualizations, and interpret results. "
+    "When writing code, use the variable `df` to refer to the uploaded dataset."
 )
 
 EXAMPLE_QUESTIONS = [
-    "How do I handle missing values in a pandas DataFrame?",
-    "Write Python code to create a scatter plot with seaborn.",
-    "Explain the difference between L1 and L2 regularization.",
-    "How do I perform A/B testing analysis?",
-    "Write a function to calculate moving average of a time series.",
+    "Show me the basic statistics of the dataset",
+    "Write Python code to create a scatter plot of the first two numeric columns",
+    "How do I handle missing values in this dataset?",
+    "Detect outliers using IQR method",
+    "Plot the distribution of each numeric column",
 ]
 
 CSS = """
@@ -49,6 +62,9 @@ CSS = """
 #status-ok { color: #27ae60; font-weight: bold; }
 #status-err { color: #e74c3c; font-weight: bold; }
 footer { visibility: hidden; }
+.code-output { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px;
+               font-family: 'Courier New', monospace; font-size: 13px;
+               max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
 """
 
 
@@ -58,8 +74,15 @@ footer { visibility: hidden; }
 
 def load_model_and_tokenizer():
     """Load base model + LoRA adapter + tokenizer."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.bfloat16 if device == "cuda" else torch.float32
+    if torch.cuda.is_available():
+        device = "cuda"
+        dtype = torch.bfloat16
+    elif torch.backends.mps.is_available():
+        device = "mps"
+        dtype = torch.float32
+    else:
+        device = "cpu"
+        dtype = torch.float32
 
     print(f"Loading tokenizer from {MODEL_NAME}...")
     tokenizer = AutoTokenizer.from_pretrained(
@@ -70,7 +93,7 @@ def load_model_and_tokenizer():
 
     print(f"Loading base model on {device}...")
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME, local_files_only=True, torch_dtype=dtype,
+        MODEL_NAME, local_files_only=True, dtype=dtype,
     )
     model.config.pad_token_id = tokenizer.pad_token_id
     model = model.to(device)
@@ -89,12 +112,170 @@ def load_model_and_tokenizer():
 
 
 # ============================================================
+# File Upload Logic
+# ============================================================
+
+def parse_file(file):
+    """Parse uploaded CSV/Excel file, return (df, preview_df, data_context)."""
+    if file is None:
+        return None, gr.update(value=None, visible=False), ""
+
+    filepath = file.name
+    try:
+        if filepath.endswith(".csv"):
+            df = pd.read_csv(filepath)
+        elif filepath.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(filepath)
+        else:
+            return None, gr.update(value=None, visible=False), "Unsupported file format"
+
+        preview = df.head(10).copy()
+        # Truncate long strings for display
+        for col in preview.select_dtypes(include=["object"]).columns:
+            preview[col] = preview[col].astype(str).str[:50]
+
+        context = build_data_context(df)
+        return df, gr.update(value=preview, visible=True), context
+
+    except Exception as e:
+        return None, gr.update(value=None, visible=False), f"Error parsing file: {e}"
+
+
+def build_data_context(df):
+    """Build a text summary of the dataframe for the prompt."""
+    buf = io.StringIO()
+    df.info(buf=buf)
+    info_str = buf.getvalue()
+
+    lines = [
+        f"**Uploaded Dataset Summary:**",
+        f"- Shape: {df.shape[0]} rows × {df.shape[1]} columns",
+        f"- Columns: {list(df.columns)}",
+        f"- Dtypes:\n{df.dtypes.to_string()}",
+        f"- Missing values:\n{df.isnull().sum().to_string()}",
+        f"- First 5 rows:\n{df.head().to_string()}",
+    ]
+    return "\n".join(lines)
+
+
+def handle_upload(file):
+    """Gradio callback for file upload."""
+    df, preview_update, context = parse_file(file)
+    if df is not None:
+        filename = os.path.basename(file.name)
+        status = f"Loaded: {filename} ({df.shape[0]} rows × {df.shape[1]} cols)"
+        return df, preview_update, status, context
+    else:
+        return None, gr.update(value=None, visible=False), context, ""
+
+
+def clear_upload():
+    """Clear uploaded data."""
+    return None, gr.update(value=None, visible=False), "", ""
+
+
+# ============================================================
+# Code Execution
+# ============================================================
+
+def extract_code_blocks(text):
+    """Extract ```python code blocks from text. Returns list of code strings."""
+    pattern = r"```python\s*\n(.*?)```"
+    matches = re.findall(pattern, text, re.DOTALL)
+    return matches
+
+
+def execute_code(code, df_state):
+    """Execute Python code in a subprocess with the dataframe available.
+    Returns (stdout_output, plot_base64)."""
+    if not code.strip():
+        return "", None
+
+    # Write dataframe to temp CSV
+    tmpdir = tempfile.mkdtemp()
+    csv_path = os.path.join(tmpdir, "data.csv")
+    plot_path = os.path.join(tmpdir, "plot.png")
+
+    if df_state is not None:
+        df_state.to_csv(csv_path, index=False)
+
+    script = f"""
+import warnings
+warnings.filterwarnings("ignore")
+import pandas as pd
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io, os, base64
+
+# Load data
+csv_path = {csv_path!r}
+plot_path = {plot_path!r}
+try:
+    df = pd.read_csv(csv_path)
+except Exception:
+    df = None
+
+# User code
+{code}
+
+# Save plot if there is a figure
+fig = plt.gcf()
+if fig.get_axes():
+    fig.savefig(plot_path, dpi=100, bbox_inches="tight")
+    print("__PLOT_SAVED__")
+"""
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=30,
+            cwd=tmpdir,
+        )
+        stdout = result.stdout
+        stderr = result.stderr
+        if stderr:
+            stdout += "\n[stderr]\n" + stderr
+
+        # Check for plot
+        plot_b64 = None
+        if os.path.exists(plot_path) and os.path.getsize(plot_path) > 0:
+            with open(plot_path, "rb") as f:
+                plot_b64 = base64.b64encode(f.read()).decode()
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+        return stdout.strip() or "(no output)", plot_b64
+
+    except subprocess.TimeoutExpired:
+        return "Execution timed out (30s limit)", None
+    except Exception as e:
+        return f"Execution error: {traceback.format_exc()}", None
+
+
+def extract_and_format_code(text):
+    """Extract last python block from text, return (code, display_text)."""
+    blocks = extract_code_blocks(text)
+    if blocks:
+        return blocks[-1]
+    return ""
+
+
+# ============================================================
 # Chat Logic
 # ============================================================
 
-def build_messages(query, history, system_prompt):
-    """Build ChatML message list from query and history tuples."""
-    messages = [{"role": "system", "content": system_prompt}]
+def build_messages(query, history, system_prompt, data_context=""):
+    """Build ChatML message list. Appends data context to system prompt."""
+    full_system = system_prompt
+    if data_context:
+        full_system += "\n\n" + data_context
+
+    messages = [{"role": "system", "content": full_system}]
     for q, r in history:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": r})
@@ -103,17 +284,16 @@ def build_messages(query, history, system_prompt):
 
 
 def chat_stream(model, tokenizer, query, history, system_prompt,
-                max_tokens, temperature, top_p):
-    """Generate streaming response. Yields new_text chunks."""
-    messages = build_messages(query, history, system_prompt)
+                max_tokens, temperature, top_p, data_context=""):
+    """Generate streaming response."""
+    messages = build_messages(query, history, system_prompt, data_context)
 
-    # Context window check: trim old history
     full_text = tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True,
     )
     token_count = len(tokenizer.encode(full_text))
     while token_count + max_tokens > MAX_CONTEXT_TOKENS and len(messages) > 2:
-        messages.pop(1)  # Remove oldest exchange
+        messages.pop(1)
         full_text = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True,
         )
@@ -146,39 +326,52 @@ def chat_stream(model, tokenizer, query, history, system_prompt,
 # UI Callbacks
 # ============================================================
 
-def predict(query, chatbot, task_history, system_prompt, max_tokens, temperature):
-    """Streaming predict: appends user message, streams assistant response."""
+def predict(query, chatbot, task_history, system_prompt, max_tokens,
+            temperature, data_context, df_state):
+    """Streaming predict with data context injection."""
     if not query.strip():
-        return chatbot, task_history
+        return chatbot, task_history, "", None
 
-    # Append user message and empty assistant placeholder
     chatbot.append({"role": "user", "content": query})
-    chatbot.append({"role": "assistant", "content": ""})
+    chatbot.append({"role": "assistant", "content": "▊ Generating..."})
+
+    print(f"[predict] Starting generation for: {query[:80]}...")
+    print(f"[predict] Device: {model.device}, Model device: {next(model.parameters()).device}")
 
     full_response = ""
-    for new_text in chat_stream(
-        model, tokenizer, query, task_history, system_prompt,
-        max_tokens, temperature, TOP_P,
-    ):
-        full_response += new_text
-        chatbot[-1] = {"role": "assistant", "content": full_response}
-        yield chatbot, task_history
+    try:
+        for new_text in chat_stream(
+            model, tokenizer, query, task_history, system_prompt,
+            max_tokens, temperature, TOP_P, data_context,
+        ):
+            full_response += new_text
+            chatbot[-1] = {"role": "assistant", "content": full_response}
+            yield chatbot, task_history, "", None
+    except Exception as e:
+        print(f"[predict] ERROR: {e}")
+        chatbot[-1] = {"role": "assistant", "content": f"**Error:** {e}"}
+        yield chatbot, task_history, "", None
+        return
 
     task_history.append((query, full_response))
+
+    # Extract code for execution panel
+    code = extract_and_format_code(full_response)
+    yield chatbot, task_history, code, None
+
     print(f"Q: {query[:80]}...")
     print(f"A: {full_response[:120]}...")
 
 
-def regenerate(chatbot, task_history, system_prompt, max_tokens, temperature):
+def regenerate(query, chatbot, task_history, system_prompt, max_tokens,
+               temperature, data_context, df_state):
     """Remove last exchange and redo prediction."""
     if not task_history:
-        yield chatbot, task_history
-        return
+        return chatbot, task_history, "", None
 
     last_query, _ = task_history.pop(-1)
-    # Remove last user+assistant pair from chatbot
-    chatbot.pop(-1)  # assistant
-    chatbot.pop(-1)  # user
+    chatbot.pop(-1)
+    chatbot.pop(-1)
 
     chatbot.append({"role": "user", "content": last_query})
     chatbot.append({"role": "assistant", "content": ""})
@@ -186,13 +379,24 @@ def regenerate(chatbot, task_history, system_prompt, max_tokens, temperature):
     full_response = ""
     for new_text in chat_stream(
         model, tokenizer, last_query, task_history, system_prompt,
-        max_tokens, temperature, TOP_P,
+        max_tokens, temperature, TOP_P, data_context,
     ):
         full_response += new_text
         chatbot[-1] = {"role": "assistant", "content": full_response}
-        yield chatbot, task_history
+        yield chatbot, task_history, "", None
 
     task_history.append((last_query, full_response))
+
+    code = extract_and_format_code(full_response)
+    yield chatbot, task_history, code, None
+
+
+def run_code(code, df_state):
+    """Execute the code and return output + plot."""
+    if not code.strip():
+        return "", None
+    output, plot_b64 = execute_code(code, df_state)
+    return output, plot_b64
 
 
 def reset_state(chatbot, task_history):
@@ -202,7 +406,7 @@ def reset_state(chatbot, task_history):
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    return chatbot, task_history
+    return chatbot, task_history, "", None
 
 
 def reset_user_input():
@@ -234,12 +438,12 @@ def build_ui():
 </div>""")
 
         with gr.Row():
+            # --- Left: Chat ---
             with gr.Column(scale=3):
-                # --- Chat area ---
                 chatbot = gr.Chatbot(
                     label="Data Agent Chat",
                     elem_classes="control-height",
-                    height=550,
+                    height=500,
                     show_label=False,
                 )
 
@@ -252,27 +456,56 @@ def build_ui():
                     )
 
                 with gr.Row():
-                    submit_btn = gr.Button(
-                        "Submit", variant="primary", scale=1,
-                    )
-                    regen_btn = gr.Button(
-                        "Regenerate", variant="secondary", scale=1,
-                    )
-                    clear_btn = gr.Button(
-                        "Clear History", variant="stop", scale=1,
-                    )
+                    submit_btn = gr.Button("Submit", variant="primary", scale=1)
+                    regen_btn = gr.Button("Regenerate", variant="secondary", scale=1)
+                    clear_btn = gr.Button("Clear History", variant="stop", scale=1)
 
-                # Examples
                 gr.Examples(
                     examples=EXAMPLE_QUESTIONS,
                     inputs=query,
                     label="Example questions",
                 )
 
-            with gr.Column(scale=1):
-                # --- Settings panel ---
-                gr.Markdown("### Generation Parameters")
+                # --- Code Execution Panel ---
+                gr.Markdown("### Code Runner")
+                with gr.Row():
+                    code_area = gr.Textbox(
+                        lines=6,
+                        placeholder="Python code extracted from assistant response will appear here...",
+                        label="Python Code",
+                    )
+                with gr.Row():
+                    run_btn = gr.Button("Run Code", variant="primary", size="sm")
+                with gr.Row():
+                    code_output = gr.Textbox(
+                        lines=6,
+                        label="Output",
+                        interactive=False,
+                    )
+                    plot_output = gr.Image(
+                        label="Plot",
+                        visible=True,
+                    )
 
+            # --- Right: Data & Params ---
+            with gr.Column(scale=2):
+                gr.Markdown("### Upload Data")
+                file_upload = gr.File(
+                    label="CSV or Excel file",
+                    file_types=[".csv", ".xlsx", ".xls"],
+                    file_count="single",
+                )
+                upload_status = gr.Markdown("")
+
+                data_preview = gr.Dataframe(
+                    label="Data Preview (first 10 rows)",
+                    visible=False,
+                    wrap=True,
+                )
+
+                clear_data_btn = gr.Button("Clear Data", variant="secondary", size="sm")
+
+                gr.Markdown("### Generation Parameters")
                 max_tokens = gr.Slider(
                     64, 1024, value=MAX_NEW_TOKENS, step=64,
                     label="Max New Tokens",
@@ -300,37 +533,61 @@ def build_ui():
 | Device | {device.upper()} |
 """)
 
-        # Hidden state for conversation tracking (query, response) pairs
+        # Hidden states
         task_history = gr.State([])
+        df_state = gr.State(None)
+        data_context = gr.State("")
 
-        # --- Wire up events ---
+        # --- Wire up: File Upload ---
+        file_upload.change(
+            handle_upload,
+            inputs=[file_upload],
+            outputs=[df_state, data_preview, upload_status, data_context],
+        )
+        clear_data_btn.click(
+            clear_upload,
+            outputs=[df_state, data_preview, upload_status, data_context],
+        )
+
+        # --- Wire up: Chat ---
+        predict_inputs = [
+            query, chatbot, task_history, system_prompt,
+            max_tokens, temperature, data_context, df_state,
+        ]
+        predict_outputs = [chatbot, task_history, code_area, plot_output]
+
         submit_event = submit_btn.click(
             predict,
-            inputs=[query, chatbot, task_history, system_prompt, max_tokens, temperature],
-            outputs=[chatbot, task_history],
-            show_progress="hidden",
+            inputs=predict_inputs,
+            outputs=predict_outputs,
         )
         submit_event.then(reset_user_input, outputs=[query])
 
         query.submit(
             predict,
-            inputs=[query, chatbot, task_history, system_prompt, max_tokens, temperature],
-            outputs=[chatbot, task_history],
-            show_progress="hidden",
+            inputs=predict_inputs,
+            outputs=predict_outputs,
         ).then(reset_user_input, outputs=[query])
 
         clear_btn.click(
             reset_state,
             inputs=[chatbot, task_history],
-            outputs=[chatbot, task_history],
+            outputs=predict_outputs,
             show_progress="hidden",
         )
 
         regen_btn.click(
             regenerate,
-            inputs=[chatbot, task_history, system_prompt, max_tokens, temperature],
-            outputs=[chatbot, task_history],
+            inputs=predict_inputs,
+            outputs=predict_outputs,
             show_progress="hidden",
+        )
+
+        # --- Wire up: Code Execution ---
+        run_btn.click(
+            run_code,
+            inputs=[code_area, df_state],
+            outputs=[code_output, plot_output],
         )
 
     return demo
@@ -343,7 +600,12 @@ def build_ui():
 if __name__ == "__main__":
     global model, tokenizer, device, model_ok, load_error
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     model_ok = True
     load_error = None
 
@@ -357,11 +619,21 @@ if __name__ == "__main__":
         model_ok = False
         load_error = str(e)
 
+    # Warmup: first inference on MPS is slow, do it ahead of time
+    if model_ok:
+        print("Warming up model (first inference on MPS is slow)...")
+        warmup_msg = [{"role": "user", "content": "Hello"}]
+        warmup_text = tokenizer.apply_chat_template(warmup_msg, tokenize=False, add_generation_prompt=True)
+        warmup_inputs = tokenizer([warmup_text], return_tensors="pt").to(model.device)
+        with torch.no_grad():
+            _ = model.generate(**warmup_inputs, max_new_tokens=8, do_sample=False)
+        print("Warmup complete!")
+
     demo = build_ui()
     print("\nStarting Gradio server...")
     demo.queue(default_concurrency_limit=1).launch(
-        server_name="0.0.0.0",
-        server_port=7860,
+        server_name="localhost",
+        server_port=7862,
         share=False,
         css=CSS,
     )
