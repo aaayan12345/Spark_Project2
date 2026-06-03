@@ -1,0 +1,938 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@page { size: A4; margin: 26mm 17mm 28mm 17mm; }
+html { background: #ffffff; }
+body { font-family: "Microsoft YaHei", "SimSun", Arial, sans-serif; color:#111111; line-height:1.68; font-size:13.6px; max-width:178mm; margin:0 auto; }
+h1, h2, h3, h4 { color:#111111; font-family:"Microsoft YaHei", "SimHei", Arial, sans-serif; font-weight:700; letter-spacing:0; page-break-after:avoid; }
+h1 { font-size:27px; border-bottom:none; padding-bottom:0; margin:10px 0 8px 0; text-align:center; }
+.student-info { text-align:center; font-size:15px; color:#111111; margin:0 0 28px 0; }
+h2 { font-size:21px; margin-top:30px; margin-bottom:12px; border-left:none; padding-left:0; }
+h3 { font-size:17px; margin-top:22px; margin-bottom:9px; }
+h4 { font-size:15px; margin-top:18px; margin-bottom:8px; }
+p { margin:7px 0; }
+ul, ol { margin-top:5px; margin-bottom:10px; padding-left:24px; }
+li { margin:4px 0; }
+table { border-collapse:collapse; width:100%; margin:12px 0 18px 0; font-size:11.8px; page-break-inside:auto; }
+th, td { border:1px solid #bfc7d1; padding:6px 8px; vertical-align:top; }
+th { background:#f1f3f5; color:#111111; font-weight:700; }
+pre { background:#f5f5f5; color:#111111; border:1px solid #d0d0d0; padding:10px 12px; border-radius:4px; overflow-wrap:anywhere; white-space:pre-wrap; font-size:10.8px; line-height:1.45; page-break-inside:avoid; }
+code { font-family:Consolas,"Courier New",monospace; background:#f2f2f2; color:#111111; padding:1px 4px; border-radius:3px; }
+pre code { background:transparent; padding:0; }
+blockquote { border-left:3px solid #999999; margin:10px 0; padding:6px 12px; color:#333333; background:#f7f7f7; }
+hr { display:none; }
+figure { margin:22px auto 24px auto; text-align:center; page-break-inside:avoid; }
+figure img { max-width:96%; max-height:640px; object-fit:contain; border:1px solid #d0d0d0; border-radius:3px; }
+figcaption { font-size:11.5px; color:#333333; margin-top:7px; line-height:1.45; }
+</style></head><body><h1>Project 2 报告：Data Agent System 与 LLM Startup Business Plan</h1>
+
+<div class="student-info">张岩&nbsp;&nbsp;12313327</div>
+
+<h2>摘要</h2>
+
+<p>本项目包含两个部分。第一部分是设计并实现一个面向数据分析任务的 generative Data Agent system。系统基于 DataMind-12K 数据集进行数据选择与处理，从中筛选出 2000 条训练样本和 500 条验证样本，并使用 Qwen3.5-0.8B 作为基础模型进行 LoRA 微调。最终部署了一个 Gradio Web Demo，支持 CSV/Excel 文件上传、自然语言数据分析问答、Python 代码生成、代码一键执行和图表展示。</p>
+
+<p>第二部分是围绕 LLM application 设计一个可盈利的 indie startup。我提出的创业项目为 <strong>InsightPilot AI</strong>，一个面向中小企业的 AI data analysis agent SaaS。报告中包含创业想法 brainstorming、商业计划、竞品分析、融资计划，以及支持 100,000 级并发的工业级系统架构设计。</p>
+
+<p>在整个项目中，我使用 <strong>OpenAI ChatGPT / Codex based on GPT-5</strong> 作为辅助工具，用于代码调试、报告结构设计、创业计划 brainstorming、系统架构设计和文本润色。最终内容、代码实现和事实检查由我负责。</p>
+
+<hr/>
+
+<h2>目录</h2>
+
+<ol>
+<li>Q1 Data Agent System</li>
+</ol>
+<p>1.1 任务目标</p>
+<p>1.2 数据选择方法</p>
+<p>1.3 DataMind-12K 数据处理</p>
+<p>1.4 Qwen3.5-0.8B + LoRA 微调</p>
+<p>1.5 Web Demo 部署</p>
+<p>1.6 调试问题与解决方案</p>
+<p>1.7 Q1 小结</p>
+<ol>
+<li>Q2 Startup Business Plan</li>
+</ol>
+<p>2.1 创业想法 Brainstorming</p>
+<p>2.2 InsightPilot AI 商业计划</p>
+<p>2.3 竞品调研与比较</p>
+<p>2.4 融资路演计划</p>
+<p>2.5 100,000 级并发系统架构设计</p>
+<p>2.6 Q2 小结</p>
+<ol>
+<li>LLM 使用声明与 Prompts 记录</li>
+<li>参考文献</li>
+<li>附录：截图清单与项目结构</li>
+</ol>
+
+<hr/>
+
+<h1>1. Q1 Data Agent System</h1>
+
+<h2>1.1 任务目标</h2>
+
+<p>Q1 的目标是设计并构建一个 generative Data Agent system，使没有编程或数据科学专业知识的用户，也可以通过自然语言 prompt 让 LLM 自动生成端到端数据分析流程、数学抽象、预测模型和可解释结果。项目指定的训练数据集为 <strong>DataMind-12K</strong>，基础模型为 <strong>Qwen3.5-0.8B</strong>。</p>
+
+<p>本项目围绕以下四个任务展开：</p>
+
+<ol>
+<li>阅读 *A Survey on Data Selection for Language Models*，选择并说明适合数据科学和数学建模领域的数据选择方法。</li>
+<li>编写 Python 代码处理 <code>datamind_12k.json</code>，从中选择 2000 条训练样本和 500 条验证样本，而不是随机采样。</li>
+<li>使用 Ray Train 对 Qwen3.5-0.8B 进行 LoRA fine-tuning，并保存 checkpoint。</li>
+<li>在本地 laptop 上部署 agent model，并准备 Web Demo。</li>
+</ol>
+
+<p>项目最终实现了从 <strong>Data Selection → Model Fine-tuning → Web Application Deployment</strong> 的完整流程。</p>
+
+<hr/>
+
+<h2>1.2 数据选择方法</h2>
+
+<p>在阅读 Survey 后，我认为数据科学和数学建模领域最适合的数据选择方法主要包括三类：IFD、InstructMining 和 K-Center Greedy。它们分别从指令跟随难度、多指标质量评估和多样性覆盖角度筛选训练数据。</p>
+
+<h3>1.2.1 IFD：Instruction Following Difficulty</h3>
+
+<p>IFD 的核心思想是衡量一条 instruction 对生成目标 answer 的贡献。如果模型在给定问题 Q 后生成答案 A 的概率明显高于无条件生成答案 A 的概率，说明这条 instruction 对 answer 有明确指导作用，训练价值较高。</p>
+
+<p>其基本形式为：</p>
+
+<pre><code>IFD(Q, A) = sθ(A|Q) / sθ(A)</code></pre>
+
+<p>其中：</p>
+
+<ul>
+<li><code>sθ(A|Q)</code> 表示给定 instruction 时 answer 的生成分数。</li>
+<li><code>sθ(A)</code> 表示不考虑 instruction 时 answer 本身的生成分数。</li>
+</ul>
+
+<p>对于数据分析 agent，用户问题通常要求模型理解数据背景、选择分析方法、编写 Python/pandas 代码、执行分析并解释结果。因此，高质量轨迹应该具有较强的 instruction-answer 依赖关系。</p>
+
+<p>在代码实现中，我没有只依赖真实模型 IFD 计算，而是设计了一个 <strong>IFD-inspired heuristic quality score</strong>，用于快速筛掉低质量轨迹。评分特征包括：</p>
+
+<ul>
+<li>多轮推理深度。</li>
+<li>是否包含代码块。</li>
+<li>是否有 <code>Thought</code> / <code>Observation</code> 等推理结构。</li>
+<li>用户指令复杂度。</li>
+<li>assistant 回答丰富度。</li>
+<li>pandas、numpy、matplotlib、sklearn 等数据科学工具使用情况。</li>
+<li>统计分析和机器学习相关词汇。</li>
+<li>是否包含错误处理过程。</li>
+<li>数据集自带 level difficulty metadata。</li>
+</ul>
+
+<p>对应实现位于 <code>data_processing.py</code> 中的 <code>compute_quality_score()</code> 和 <code>quality_filter()</code>。</p>
+
+<h3>1.2.2 InstructMining：多指标质量评估</h3>
+
+<p>InstructMining 将 instruction tuning 数据选择看作一种数据挖掘问题。它使用多个指标预测样本对模型微调效果的贡献，例如输入长度、输出长度、困惑度、奖励分数、词汇多样性、embedding 近邻距离、自然度、连贯性和可理解性等。</p>
+
+<p>数据分析任务通常不是单一文本生成任务，而是混合了自然语言推理、代码生成、代码执行、图表解释和错误修复。因此，多指标方法比单一长度或单一打分更适合。</p>
+
+<p>本项目中额外实现了一个基于 DeepSeek API 的评分脚本 <code>deepseek_scoring.py</code>。它使用外部 LLM 对轨迹进行多维度评分：</p>
+
+<ul>
+<li><code>reasoning_depth</code></li>
+<li><code>code_correctness</code></li>
+<li><code>instruction_clarity</code></li>
+<li><code>answer_completeness</code></li>
+<li><code>educational_value</code></li>
+</ul>
+
+<p>该脚本可以作为 InstructMining 思路的扩展，用于对候选轨迹做 reward-based reranking。</p>
+
+<h3>1.2.3 K-Center Greedy：多样性驱动核心集选择</h3>
+
+<p>K-Center Greedy 的目标是在 embedding 空间中选择一组代表性样本，使未选样本到最近已选样本的最大距离尽可能小。直观理解就是每一步都选择“离当前已选集合最远”的样本，从而保证覆盖不同任务类型。</p>
+
+<p>DataMind-12K 覆盖大量数据科学任务，包括：</p>
+
+<ul>
+<li>数据清洗。</li>
+<li>描述性统计。</li>
+<li>数据可视化。</li>
+<li>机器学习建模。</li>
+<li>数学建模。</li>
+<li>数据转换和 ETL。</li>
+<li>分析报告生成。</li>
+</ul>
+
+<p>如果随机采样，常见任务可能被过度选择，而稀有但重要的任务会被忽略。因此，本项目在质量筛选后使用 K-Center Greedy 做多样性选择。</p>
+
+<p>对应实现位于 <code>data_processing.py</code>：</p>
+
+<ul>
+<li><code>build_tf_embeddings()</code>：构建基于 term frequency 的轻量文本向量。</li>
+<li><code>k_center_greedy()</code>：执行 K-Center Greedy 选择。</li>
+<li><code>diversity_select()</code>：先选择 validation set，再从剩余样本中选择 training set。</li>
+</ul>
+
+<hr/>
+
+<h2>1.3 DataMind-12K 数据处理</h2>
+
+<h3>1.3.1 数据处理流程</h3>
+
+<p>数据处理脚本为 <code>data_processing.py</code>。整体流程如下：</p>
+
+<ol>
+<li>加载 DataMind-12K 原始 JSON 数据。</li>
+<li>使用 IFD-inspired heuristic quality score 为每条轨迹打分。</li>
+<li>保留 top 75% 的候选样本，过滤低质量样本。</li>
+<li>如果存在 IFD 或 DeepSeek API 评分文件，则可进行二次 reranking。</li>
+<li>使用 K-Center Greedy 选择 500 条 validation samples。</li>
+<li>从剩余样本中选择 2000 条 training samples。</li>
+<li>将数据转换为 Qwen ChatML 格式。</li>
+<li>生成 selection report。</li>
+</ol>
+
+<p>核心配置如下：</p>
+
+<table>
+<tr><th>参数</th><th>数值</th></tr>
+<tr><td>训练集大小</td><td>2000</td></tr>
+<tr><td>验证集大小</td><td>500</td></tr>
+<tr><td>质量筛选比例</td><td>top 75%</td></tr>
+<tr><td>多样性方法</td><td>K-Center Greedy</td></tr>
+<tr><td>输出格式</td><td>ChatML JSONL</td></tr>
+<tr><td>训练文件</td><td><code>data/train_data.jsonl</code></td></tr>
+<tr><td>验证文件</td><td><code>data/val_data.jsonl</code></td></tr>
+</table>
+
+<h3>1.3.2 数据选择结果</h3>
+
+<p>最终生成的数据文件如下：</p>
+
+<ul>
+<li><code>data/train_data.jsonl</code>：2000 条训练样本。</li>
+<li><code>data/val_data.jsonl</code>：500 条验证样本。</li>
+<li><code>data/selection_report.txt</code>：数据选择统计报告。</li>
+</ul>
+
+<p>选择结果统计如下：</p>
+
+<table>
+<tr><th>数据集</th><th>样本数</th><th>平均词数</th><th>词数范围</th><th>平均轮数</th><th>轮数范围</th></tr>
+<tr><td>Training Set</td><td>2000</td><td>1771</td><td>982 - 4062</td><td>10.0</td><td>5 - 23</td></tr>
+<tr><td>Validation Set</td><td>500</td><td>1858</td><td>1024 - 4172</td><td>10.5</td><td>5 - 21</td></tr>
+</table>
+
+<p>难度分布如下：</p>
+
+<table>
+<tr><th>数据集</th><th>Level 分布</th></tr>
+<tr><td>Training Set</td><td><code>N/A</code>: 976, <code>easy</code>: 538, <code>Highly Complex</code>: 370, <code>Moderate</code>: 67, <code>Simple</code>: 41, <code>Complex</code>: 8</td></tr>
+<tr><td>Validation Set</td><td><code>N/A</code>: 226, <code>Highly Complex</code>: 131, <code>easy</code>: 95, <code>Simple</code>: 20, <code>Moderate</code>: 20, <code>Complex</code>: 8</td></tr>
+</table>
+
+<p>从统计可以看出，训练集和验证集都保留了较长、多轮的数据分析轨迹，平均每条样本约 10 轮对话，说明筛选结果更偏向完整的数据分析过程，而不是简单的一问一答。</p>
+
+<h3>1.3.3 Optional Scoring</h3>
+
+<p>项目还提供了两个可选评分脚本：</p>
+
+<ol>
+<li><code>deepseek_scoring.py</code></li>
+</ol>
+<p>使用 DeepSeek API 对轨迹进行多维度质量评分。为了控制 API 成本，默认 <code>MAX_SAMPLES = 500</code>，并支持断点续跑。</p>
+
+<ol>
+<li><code>ifd_scoring.py</code></li>
+</ol>
+<p>使用本地 Qwen 模型和 LoRA adapter 计算 model-based IFD score。默认 <code>MAX_SAMPLE_SIZE = 500</code>，最大模型上下文长度为 2048。</p>
+
+<p>这两个脚本没有替代主流程，而是作为进一步 reranking 和质量分析的扩展。</p>
+
+<hr/>
+
+<h2>1.4 Qwen3.5-0.8B + LoRA 微调</h2>
+
+<h3>1.4.1 模型与训练设置</h3>
+
+<p>本项目使用 <strong>Qwen3.5-0.8B</strong> 作为基础模型，模型文件保存在：</p>
+
+<pre><code>Spark_Project2/qwen_model_local/</code></pre>
+
+<p>训练脚本为 <code>train.py</code>，使用 Ray Train 组织训练流程，并使用 PEFT LoRA 进行参数高效微调。</p>
+
+<p>主要训练配置如下：</p>
+
+<table>
+<tr><th>配置项</th><th>数值</th></tr>
+<tr><td>Base Model</td><td>Qwen3.5-0.8B</td></tr>
+<tr><td>Fine-tuning Method</td><td>LoRA</td></tr>
+<tr><td>LoRA rank <code>r</code></td><td>16</td></tr>
+<tr><td>LoRA alpha</td><td>32</td></tr>
+<tr><td>LoRA dropout</td><td>0.05</td></tr>
+<tr><td>Target Modules</td><td><code>q_proj</code>, <code>k_proj</code>, <code>v_proj</code>, <code>o_proj</code>, <code>gate_proj</code>, <code>up_proj</code>, <code>down_proj</code></td></tr>
+<tr><td>Epochs</td><td>3</td></tr>
+<tr><td>Batch Size</td><td>1</td></tr>
+<tr><td>Learning Rate</td><td>5e-5</td></tr>
+<tr><td>Max Length</td><td>1536</td></tr>
+<tr><td>Gradient Accumulation Steps</td><td>8</td></tr>
+<tr><td>Mixed Precision</td><td>CUDA 使用 bfloat16，否则 fp32</td></tr>
+<tr><td>Gradient Checkpointing</td><td>Enabled</td></tr>
+</table>
+
+<p>LoRA adapter 最终保存在：</p>
+
+<pre><code>output/qwen-datamind-lora-v2/best_model/</code></pre>
+
+<p>其中：</p>
+
+<ul>
+<li><code>adapter_config.json</code>：LoRA 配置。</li>
+<li><code>adapter_model.safetensors</code>：LoRA 权重，大小约 25.6 MB。</li>
+</ul>
+
+<h3>1.4.2 数据预处理与 Loss Masking</h3>
+
+<p>训练脚本中的 <code>preprocess_dataset()</code> 使用 Qwen tokenizer 的 <code>apply_chat_template()</code> 将多轮消息转换为 ChatML 格式。为了让模型重点学习 assistant 的回答，而不是学习 user/system 内容，代码实现了 assistant-only loss masking：</p>
+
+<ol>
+<li>找到每个 <code>&lt;|im_start|&gt;assistant</code> 到 <code>&lt;|im_end|&gt;</code> 之间的 assistant content。</li>
+<li>只保留 assistant token 的 labels。</li>
+<li>其他 token 的 labels 设为 <code>-100</code>，不参与 loss 计算。</li>
+</ol>
+
+<p>这种处理方式更适合 instruction tuning，因为模型训练目标是根据用户指令生成 assistant response。</p>
+
+<h3>1.4.3 Ray Train 训练流程</h3>
+
+<p>训练脚本使用 <code>TorchTrainer</code> 启动训练。训练过程中：</p>
+
+<ol>
+<li>加载 tokenizer 和 base model。</li>
+<li>应用 LoRA adapter。</li>
+<li>启用 gradient checkpointing 以降低显存占用。</li>
+<li>加载训练集和验证集 JSONL。</li>
+<li>对数据进行 tokenization。</li>
+<li>使用 AdamW optimizer 和 linear warmup scheduler。</li>
+<li>每个 epoch 后计算 validation loss。</li>
+<li>通过 <code>train.report()</code> 向 Ray Train 汇报 <code>train_loss</code>、<code>val_loss</code>、<code>learning_rate</code> 和 <code>global_step</code>。</li>
+<li>以 <code>val_loss</code> 作为 checkpoint 选择指标。</li>
+</ol>
+
+<h3>1.4.4 训练结果</h3>
+
+<p>根据 Web Demo 中显示和项目记录，最终 best model 的 validation loss 为：</p>
+
+<pre><code>Val Loss: 0.1177</code></pre>
+
+<p>LoRA adapter 文件已经成功生成，说明微调流程已完成。该 adapter 在部署阶段被加载到基础模型上，用于数据分析 assistant 的推理。</p>
+
+<hr/>
+
+<h2>1.5 Web Demo 部署</h2>
+
+<h3>1.5.1 Demo 功能概述</h3>
+
+<p>Web Demo 实现在 <code>app.py</code> 中，使用 Gradio 构建。系统支持：</p>
+
+<ol>
+<li>加载 Qwen3.5-0.8B base model。</li>
+<li>加载 LoRA adapter。</li>
+<li>上传 CSV/Excel 文件。</li>
+<li>预览前 10 行数据。</li>
+<li>自动生成 dataset summary 并注入 prompt。</li>
+<li>流式输出模型回答。</li>
+<li>提取回答中的 Python code block。</li>
+<li>一键运行代码。</li>
+<li>显示 stdout/stderr 和 matplotlib 图表。</li>
+</ol>
+
+<p>启动方式：</p>
+
+<pre><code>cd E:\hadoop_project2\Spark_Project2\Hadoop_Project2
+python app.py</code></pre>
+
+<p>浏览器打开：</p>
+
+<pre><code>http://localhost:7862</code></pre>
+
+<figure><img src="picture/1.png" alt="图 1：Gradio Data Agent Demo 首页，显示 LoRA 模型已加载、Val Loss=0.1177、Device=CUDA。"/><figcaption>图 1：Gradio Data Agent Demo 首页，显示 LoRA 模型已加载、Val Loss=0.1177、Device=CUDA。</figcaption></figure>
+
+<h3>1.5.2 文件上传与数据上下文注入</h3>
+
+<p><code>parse_file()</code> 支持 CSV、XLSX 和 XLS 文件。上传后，系统会：</p>
+
+<ol>
+<li>使用 pandas 读取文件。</li>
+<li>展示前 10 行 preview。</li>
+<li>调用 <code>build_data_context()</code> 生成数据摘要。</li>
+<li>将数据摘要追加到 system prompt 中。</li>
+</ol>
+
+<p>数据摘要包含：</p>
+
+<ul>
+<li>数据行列数。</li>
+<li>列名。</li>
+<li>每列 dtype。</li>
+<li>缺失值统计。</li>
+<li>前 5 行样例。</li>
+</ul>
+
+<p>这样模型在回答用户问题时可以知道当前数据集的结构，不需要用户手动描述字段。</p>
+
+<figure><img src="picture/2.png" alt="图 2：上传 sample_sales_data.csv 后，系统展示数据文件信息和前 10 行预览。"/><figcaption>图 2：上传 sample_sales_data.csv 后，系统展示数据文件信息和前 10 行预览。</figcaption></figure>
+
+<h3>1.5.3 流式对话与上下文管理</h3>
+
+<p><code>chat_stream()</code> 使用 Qwen tokenizer 的 chat template 构造输入，并使用 <code>TextIteratorStreamer</code> 实现流式输出。为了避免超过上下文窗口，代码设置：</p>
+
+<pre><code>MAX_CONTEXT_TOKENS = 2048
+MAX_NEW_TOKENS = 512
+TEMPERATURE = 0.7
+TOP_P = 0.9</code></pre>
+
+<p>当历史对话过长时，系统会删除较早的 history，保留最新上下文和当前问题。</p>
+
+<figure><img src="picture/3.png" alt="图 3：用户用自然语言提问后，Data Agent 返回数据统计分析结果。"/><figcaption>图 3：用户用自然语言提问后，Data Agent 返回数据统计分析结果。</figcaption></figure>
+
+<h3>1.5.4 Code Runner</h3>
+
+<p>Code Runner 是本项目 Web Demo 的关键功能。它解决了普通 LLM 回答不能直接执行的问题。</p>
+
+<p>实现细节包括：</p>
+
+<ol>
+<li><code>extract_code_blocks()</code> 支持三种代码格式：</li>
+</ol>
+<ul>
+<li>Markdown Python code block，即以三个反引号加 <code>python</code> 开头的代码块。</li>
+<li>无语言标记 code block，即普通三个反引号代码块。</li>
+<li>DataMind-12K 中常见的 <code>&lt;code&gt;...&lt;/code&gt;</code> XML 标签。</li>
+</ul>
+<ol>
+<li>使用 <code>textwrap.dedent()</code> 修复缩进。</li>
+<li>使用临时 CSV 文件将上传数据传入 subprocess。</li>
+<li>在执行环境中预先加载 <code>df</code> 变量。</li>
+<li>自动替换模型生成的 <code>df = pd.read_csv(...)</code>，避免路径错误。</li>
+<li>自动保存 matplotlib figure。</li>
+<li>将图像写入临时 PNG 文件并返回给 Gradio <code>gr.Image</code>。</li>
+</ol>
+
+<figure><img src="picture/5.png" alt="图 4：模型生成 Python 分析代码，Code Runner 自动提取代码块。"/><figcaption>图 4：模型生成 Python 分析代码，Code Runner 自动提取代码块。</figcaption></figure>
+
+<figure><img src="picture/6.png" alt="图 5：Code Runner 执行 Python 代码后，返回运行输出并展示 matplotlib 图表。"/><figcaption>图 5：Code Runner 执行 Python 代码后，返回运行输出并展示 matplotlib 图表。</figcaption></figure>
+
+<hr/>
+
+<h2>1.6 调试问题与解决方案</h2>
+
+<p>项目从 Linux 环境迁移到 Windows 11 laptop 后遇到了一系列工程问题。主要问题和解决方案如下：</p>
+
+<table>
+<tr><th>问题</th><th>原因</th><th>解决方案</th></tr>
+<tr><td>基础模型缺失</td><td><code>qwen_model_local/</code> 被 <code>.gitignore</code> 排除</td><td>从 HuggingFace 下载 Qwen3.5-0.8B 到本地模型目录</td></tr>
+<tr><td>Linux 绝对路径无法使用</td><td>原代码使用 <code>/root/Hadoop_Project2/</code></td><td>改为基于 <code>os.path.dirname(os.path.abspath(__file__))</code> 的相对路径</td></tr>
+<tr><td>torch/torchvision 不兼容</td><td>预装开发版 torch 与 torchvision 版本不匹配</td><td>重装与 CUDA 12.8 匹配的 PyTorch 版本</td></tr>
+<tr><td>transformers 不支持 <code>qwen3_5</code></td><td>transformers 版本过旧</td><td>升级 transformers</td></tr>
+<tr><td>Code Runner 无法提取代码</td><td>模型输出 <code>&lt;code&gt;</code> 标签而非 Markdown code block</td><td>扩展正则，支持 Markdown 和 XML code tags</td></tr>
+<tr><td><code>pd.read_csv</code> 路径错误</td><td>模型生成了不存在的文件路径</td><td>执行前移除 <code>df = pd.read_csv(...)</code>，使用预加载的 <code>df</code></td></tr>
+<tr><td>日期列类型错误</td><td>CSV 重新读取后日期变成 string</td><td>使用 <code>parse_dates=True</code></td></tr>
+<tr><td>Gradio 图片不显示</td><td><code>gr.Image</code> 不接受 base64 字符串</td><td>将 base64 解码成临时 PNG 文件</td></tr>
+<tr><td>代码缩进异常</td><td>LLM 输出代码缩进不稳定</td><td>使用 <code>textwrap.dedent()</code></td></tr>
+<tr><td>模型只输出代码</td><td>微调数据风格影响输出</td><td>优化 System Prompt，要求先解释再给代码</td></tr>
+</table>
+
+<p>这些调试过程说明，Data Agent 不只是模型训练任务，也包含完整的工程适配：路径管理、依赖版本、UI 交互、代码执行安全和模型输出格式对齐。</p>
+
+<hr/>
+
+<h2>1.7 Q1 小结</h2>
+
+<p>Q1 最终完成了一个可运行的数据分析 agent prototype：</p>
+
+<ul>
+<li>使用 Survey 中的数据选择思想完成了非随机采样。</li>
+<li>生成了 2000 条训练数据和 500 条验证数据。</li>
+<li>使用 Ray Train + LoRA 对 Qwen3.5-0.8B 进行了微调。</li>
+<li>保存了 LoRA adapter checkpoint。</li>
+<li>实现了支持文件上传、自然语言问答、代码执行和图表展示的 Gradio demo。</li>
+</ul>
+
+<p>该系统初步证明了：经过数据选择和领域微调后，LLM 可以作为数据分析 agent 的核心模块，帮助普通用户完成从数据理解到代码执行和结果解释的工作流。</p>
+
+<hr/>
+
+<h1>2. Q2 Startup Business Plan</h1>
+
+<h2>2.1 创业想法 Brainstorming</h2>
+
+<p>Q2 要求设计一个基于 LLM applications 的 startup，并撰写商业计划、竞品分析和路演计划。结合 Q1 中实现的 Data Agent，我 brainstorm 了多个方向：</p>
+
+<table>
+<tr><th>创业想法</th><th>目标用户</th><th>核心价值</th><th>选择情况</th></tr>
+<tr><td>AI data analysis assistant for SMEs</td><td>小企业、营销团队、运营团队</td><td>上传数据并用自然语言获得分析、图表和报告</td><td>最终选择</td></tr>
+<tr><td>AI business plan writer</td><td>学生、初创 founders</td><td>自动生成商业计划和 pitch deck</td><td>竞争激烈，差异化不足</td></tr>
+<tr><td>AI financial modeling copilot</td><td>创业者和财务团队</td><td>自动构建财务预测和投资模型</td><td>需要更强金融验证</td></tr>
+<tr><td>AI survey/report generator</td><td>研究人员、咨询顾问</td><td>自动分析问卷并生成报告</td><td>初始市场较窄</td></tr>
+<tr><td>AI no-code ML prediction tool</td><td>销售、营销和运营团队</td><td>预测 churn、conversion、demand</td><td>技术复杂度高，竞品较强</td></tr>
+</table>
+
+<p>最终选择的创业项目为 <strong>InsightPilot AI</strong>：一个面向中小企业的 AI-powered data analysis agent。</p>
+
+<hr/>
+
+<h2>2.2 InsightPilot AI 商业计划</h2>
+
+<h3>2.2.1 Executive Summary</h3>
+
+<p>InsightPilot AI 是一个面向 small and medium-sized businesses 的自然语言数据分析平台。用户可以上传 CSV/Excel 文件或连接 Google Sheets、Shopify、Google Ads、PostgreSQL 等数据源，然后用自然语言提出业务问题。系统自动完成数据清洗建议、统计摘要、可视化图表、Python/SQL code、业务洞察和可导出报告。</p>
+
+<p>其核心价值是让没有专业数据团队的小公司，也可以拥有一个低成本、随时可用、可复现的 AI data analyst。</p>
+
+<h3>2.2.2 Problem</h3>
+
+<p>中小企业普遍面临以下问题：</p>
+
+<ol>
+<li>数据存在于多个系统中，但没有能力快速分析。</li>
+<li>传统 BI tools 需要建模、配置和维护。</li>
+<li>通用 chatbot 不适合长期项目管理和团队协作。</li>
+<li>雇佣 full-time data analyst 成本高。</li>
+<li>业务决策需要可解释、可复现的分析过程。</li>
+</ol>
+
+<h3>2.2.3 Product</h3>
+
+<p>InsightPilot AI 的核心功能包括：</p>
+
+<ul>
+<li>CSV/Excel upload。</li>
+<li>Google Sheets、Shopify、Stripe、HubSpot 等 connectors。</li>
+<li>Natural-language analysis。</li>
+<li>Automatic data cleaning and profiling。</li>
+<li>Charts and reports。</li>
+<li>Transparent code and reproducible workflow。</li>
+<li>Scheduled weekly/monthly reports。</li>
+</ul>
+
+<h3>2.2.4 Target Market</h3>
+
+<p>第一个 beachhead market 是 5-100 人规模的 e-commerce 和 digital marketing teams。这类团队经常需要分析 sales、campaign、customer、inventory 和 ROI 数据，但通常没有完整的数据团队。</p>
+
+<p>典型用户包括：</p>
+
+<ul>
+<li>E-commerce founder。</li>
+<li>Marketing manager。</li>
+<li>Operations manager。</li>
+<li>Junior analyst。</li>
+</ul>
+
+<h3>2.2.5 Business Model</h3>
+
+<p>InsightPilot AI 采用 SaaS subscription model：</p>
+
+<table>
+<tr><th>Plan</th><th>Price</th><th>Target User</th><th>Features</th></tr>
+<tr><td>Free</td><td>$0/month</td><td>试用用户和学生</td><td>有限上传和有限消息</td></tr>
+<tr><td>Starter</td><td>$19/month</td><td>Solo founders</td><td>CSV/Excel 分析、图表导出</td></tr>
+<tr><td>Team</td><td>$49/user/month</td><td>小型团队</td><td>共享 workspace、scheduled reports、connectors</td></tr>
+<tr><td>Business</td><td>$299/month+</td><td>成长型 SMEs</td><td>数据库连接、权限管理、audit logs</td></tr>
+<tr><td>Services</td><td>Custom</td><td>需要 onboarding 的企业</td><td>数据接入、模板配置、培训</td></tr>
+</table>
+
+<p>早期主要依赖 self-serve subscription，后期通过 Business plan 和 implementation services 提高收入。</p>
+
+<h3>2.2.6 Go-To-Market Strategy</h3>
+
+<p>Go-to-market 策略分为三阶段：</p>
+
+<ol>
+<li><strong>MVP Validation</strong></li>
+</ol>
+<p>基于 Q1 Data Agent demo 构建 MVP，访谈 20-30 位中小企业用户，验证真实需求。</p>
+
+<ol>
+<li><strong>Community and Content Growth</strong></li>
+</ol>
+<p>在 Product Hunt launch，发布 Shopify sales analysis、ad campaign ROI analysis 等案例文章和短视频。</p>
+
+<ol>
+<li><strong>Paid Conversion</strong></li>
+</ol>
+<p>当用户需要更大文件、更多分析次数、团队协作、connectors 和 PDF/PPT export 时，引导升级到付费版本。</p>
+
+<hr/>
+
+<h2>2.3 竞品调研与比较</h2>
+
+<p>AI data analysis 市场已经存在多个相关产品，但它们的定位并不相同。</p>
+
+<table>
+<tr><th>Product</th><th>Strengths</th><th>Weaknesses</th><th>与 InsightPilot AI 的区别</th></tr>
+<tr><td>ChatGPT Advanced Data Analysis</td><td>灵活、Python/statistical reasoning 强</td><td>项目持久化、团队 workflow 和 business reporting 较弱</td><td>InsightPilot 更关注 SME workflow 和可复现报告</td></tr>
+<tr><td>Julius AI</td><td>非技术用户容易上手，CSV-to-chart 快</td><td>复杂多步骤分析和人工控制较弱</td><td>InsightPilot 强化 workflow memory、transparent code 和 domain templates</td></tr>
+<tr><td>Hex</td><td>SQL/Python notebook collaboration 强</td><td>更适合技术团队</td><td>InsightPilot 更面向 business users</td></tr>
+<tr><td>Deepnote AI</td><td>数据科学 notebook 协作好</td><td>非技术用户门槛较高</td><td>InsightPilot 不是 notebook-first</td></tr>
+<tr><td>ThoughtSpot</td><td>Enterprise natural-language BI 强</td><td>需要 enterprise data modeling 和部署</td><td>InsightPilot setup cost 更低</td></tr>
+<tr><td>Tableau / Power BI Copilot</td><td>Dashboard 成熟，企业生态强</td><td>配置复杂，不适合快速 ad-hoc 分析</td><td>InsightPilot 作为轻量替代或补充</td></tr>
+<tr><td>Rows AI / Capalyze</td><td>Spreadsheet-native，对 no-code users 友好</td><td>容易受 spreadsheet scale 限制</td><td>InsightPilot 增加 agentic analysis 和报告工作流</td></tr>
+<tr><td>Akkio</td><td>No-code predictive modeling 强</td><td>更偏预测，不是通用分析平台</td><td>InsightPilot 初期覆盖更广</td></tr>
+</table>
+
+<p>市场空缺在于：</p>
+
+<ul>
+<li>通用 AI chat 灵活但缺少团队化工作流。</li>
+<li>企业 BI 强大但成本和部署门槛高。</li>
+<li>Spreadsheet AI 易用但复杂分析能力有限。</li>
+</ul>
+
+<p>InsightPilot AI 的定位是填补这一空缺，为中小企业提供低门槛、可解释、可复现的数据分析 agent。</p>
+
+<hr/>
+
+<h2>2.4 融资路演计划</h2>
+
+<p>在 roadshow presentation 中，InsightPilot AI 可以以以下逻辑展开：</p>
+
+<ol>
+<li>Problem：中小企业有数据但没有分析能力。</li>
+<li>Solution：AI data analyst in a box。</li>
+<li>Product Demo：上传数据、自然语言提问、生成代码、运行图表、导出报告。</li>
+<li>Market：SME、e-commerce、digital marketing teams。</li>
+<li>Competitors：与 ChatGPT、Julius AI、BI tools 和 spreadsheet AI 对比。</li>
+<li>Business Model：SaaS subscription + services。</li>
+<li>Go-To-Market：Product Hunt、内容营销、模板获客。</li>
+<li>Technology：LLM + sandbox execution + report generation。</li>
+<li>Traction Plan：MVP、beta users、paying users、MRR。</li>
+<li>Funding Ask：融资 $500,000，支持 18 个月 runway。</li>
+</ol>
+
+<p>融资计划：</p>
+
+<table>
+<tr><th>项目</th><th>说明</th></tr>
+<tr><td>Seed Funding Ask</td><td>$500,000</td></tr>
+<tr><td>Runway</td><td>18 个月</td></tr>
+<tr><td>45%</td><td>Product development and engineering</td></tr>
+<tr><td>25%</td><td>LLM/API/cloud infrastructure</td></tr>
+<tr><td>20%</td><td>Sales, marketing and customer acquisition</td></tr>
+<tr><td>10%</td><td>Legal, security and operations</td></tr>
+</table>
+
+<p>预期成果：</p>
+
+<ul>
+<li>完成 production-ready SaaS product。</li>
+<li>建设 5-8 个主要 data connectors。</li>
+<li>获得 1,000+ paying users 或 100+ team customers。</li>
+<li>形成清晰的 retention 和 revenue metrics。</li>
+</ul>
+
+<hr/>
+
+<h2>2.5 100,000 级并发系统架构设计</h2>
+
+<h3>2.5.1 架构目标</h3>
+
+<p>InsightPilot AI 的工业级系统需要支持 100,000-level concurrency。这里的并发不是指 100,000 个用户同时进行 LLM 推理，而是指平台可同时承载约 100,000 在线用户，其中一部分浏览 dashboard/report，一部分上传数据或查看历史结果，一部分发起 AI analysis。</p>
+
+<p>由于 LLM inference、code execution 和 report generation 成本较高，系统采用同步 + 异步混合架构：</p>
+
+<ul>
+<li>轻量请求走 online API。</li>
+<li>重型分析任务进入 message queue。</li>
+<li>worker pool 异步处理 LLM、数据处理和代码执行任务。</li>
+</ul>
+
+<h3>2.5.2 高层架构图</h3>
+
+<figure><img src="picture/q2_architecture_diagram_imagegen.png" alt="图 6：InsightPilot AI 工业级系统架构图，展示 API、异步队列、Agent workers、存储层和监控模块。"/><figcaption>图 6：InsightPilot AI 工业级系统架构图，展示 API、异步队列、Agent workers、存储层和监控模块。</figcaption></figure>
+
+<h3>2.5.3 核心模块</h3>
+
+<table>
+<tr><th>模块</th><th>职责</th></tr>
+<tr><td>CDN + WAF</td><td>缓存静态资源，防护恶意请求</td></tr>
+<tr><td>Load Balancer</td><td>将请求分发到不同服务实例</td></tr>
+<tr><td>API Gateway</td><td>统一鉴权、限流、路由、日志和 quota check</td></tr>
+<tr><td>Auth &amp; RBAC Service</td><td>用户登录、组织、权限管理</td></tr>
+<tr><td>Billing &amp; Quota Service</td><td>订阅计划、token usage、文件大小和调用次数限制</td></tr>
+<tr><td>File Upload Service</td><td>文件上传、pre-signed URL、metadata 记录</td></tr>
+<tr><td>Data Processing Workers</td><td>schema detection、profiling、统计、sample extraction</td></tr>
+<tr><td>LLM Gateway</td><td>统一封装 OpenAI、DeepSeek、Qwen 和 fallback model</td></tr>
+<tr><td>Agent Orchestrator</td><td>拆解任务、调用模型、调用工具、整合结果</td></tr>
+<tr><td>Code Execution Sandbox</td><td>安全执行 LLM 生成的 Python/SQL code</td></tr>
+<tr><td>Report Service</td><td>生成 PDF/PPT/Shareable report</td></tr>
+<tr><td>PostgreSQL</td><td>用户、项目、权限、metadata</td></tr>
+<tr><td>Object Storage</td><td>原始文件、图表、报告等大文件</td></tr>
+<tr><td>Redis</td><td>Session、hot metadata、job status、rate limit</td></tr>
+<tr><td>Vector Database</td><td>RAG memory、semantic cache</td></tr>
+<tr><td>Monitoring Stack</td><td>指标、日志、链路追踪和告警</td></tr>
+</table>
+
+<h3>2.5.4 高并发设计</h3>
+
+<p>系统采用以下策略支持 100,000 级并发：</p>
+
+<ol>
+<li><strong>Hot Path / Cold Path 分离</strong></li>
+</ol>
+<p>登录、项目列表、历史报告读取等轻量请求走 Hot Path；LLM reasoning、代码执行、大文件 profiling 和报告生成走 Cold Path。</p>
+
+<ol>
+<li><strong>Horizontal Scaling</strong></li>
+</ol>
+<p>所有 stateless services 部署在 Kubernetes 上，根据 QPS、CPU、queue length 和 token throughput 自动扩容。</p>
+
+<ol>
+<li><strong>Message Queue</strong></li>
+</ol>
+<p>使用 Kafka 或 RabbitMQ 处理异步任务，包括 dataset profiling、analysis planning、code execution、report generation 和 scheduled jobs。</p>
+
+<ol>
+<li><strong>Caching Strategy</strong></li>
+</ol>
+<p>使用 CDN cache、Redis cache、semantic cache、result cache 和 model cache 降低重复计算。</p>
+
+<ol>
+<li><strong>Database Scaling</strong></li>
+</ol>
+<p>PostgreSQL 采用 primary + read replicas，后续按 <code>organization_id</code> 或 <code>workspace_id</code> sharding。Object Storage 用于承载大文件。</p>
+
+<ol>
+<li><strong>Backpressure and Quota</strong></li>
+</ol>
+<p>当 queue length 过高时，对 Free plan 降低优先级，对 Team/Business plan 保留优先队列，并对超出 quota 的请求提示升级。</p>
+
+<h3>2.5.5 安全与可靠性</h3>
+
+<p>由于系统会执行 LLM 生成的代码，安全设计非常重要：</p>
+
+<ul>
+<li>每个代码执行任务运行在隔离 container 或 microVM。</li>
+<li>限制 CPU、memory、runtime 和 network access。</li>
+<li>默认禁止公网访问。</li>
+<li>只挂载当前 dataset 的临时只读副本。</li>
+<li>对危险代码进行 static scan。</li>
+<li>保存 stdout、stderr、generated files 和 charts。</li>
+</ul>
+
+<p>可靠性设计包括：</p>
+
+<ul>
+<li>LLM API timeout 时 retry + circuit breaker + fallback model。</li>
+<li>worker crash 后 queue message 重新投递。</li>
+<li>PostgreSQL primary failure 后自动 failover。</li>
+<li>新模型使用 shadow testing 和 canary deployment。</li>
+<li>系统支持 rollback。</li>
+</ul>
+
+<h3>2.5.6 Monitoring and Operation Module</h3>
+
+<p>监控指标包括：</p>
+
+<ul>
+<li>API QPS、p95/p99 latency、error rate。</li>
+<li>CPU、memory、GPU utilization。</li>
+<li>Redis hit ratio。</li>
+<li>Queue length and consumer lag。</li>
+<li>LLM tokens per request、cost per request、timeout rate、fallback rate。</li>
+<li>Code execution success rate。</li>
+<li>Dataset upload success rate。</li>
+<li>Profiling failure rate。</li>
+</ul>
+
+<p>工具栈：</p>
+
+<ul>
+<li>Prometheus：指标采集。</li>
+<li>Grafana：dashboard。</li>
+<li>ELK / OpenSearch：日志检索。</li>
+<li>OpenTelemetry：distributed tracing。</li>
+<li>Alertmanager / PagerDuty：告警。</li>
+<li>Sentry：异常追踪。</li>
+</ul>
+
+<hr/>
+
+<h2>2.6 Q2 小结</h2>
+
+<p>Q2 以 Q1 的 Data Agent 技术原型为基础，延伸出一个可商业化的 LLM startup：InsightPilot AI。该产品面向中小企业的数据分析需求，采用 SaaS subscription model，并通过自然语言分析、代码执行、图表生成和报告导出形成差异化。</p>
+
+<p>在系统架构层面，InsightPilot AI 使用 cloud-native、event-driven 和 AI-native 的组合设计。其核心思想是：用 horizontal scaling 支撑普通 Web 并发，用 queue 和 worker pool 承接重型 AI 任务，用 cache 和 quota 控制成本，用 sandbox 和 RBAC 保护企业数据安全，用 monitoring 和 feedback loop 持续优化服务质量。</p>
+
+<hr/>
+
+<h1>3. LLM 使用声明与 Prompts 记录</h1>
+
+<h2>3.1 LLM 使用声明</h2>
+
+<p>本项目中，我使用 <strong>OpenAI ChatGPT / Codex based on GPT-5</strong> 作为辅助工具，主要用于：</p>
+
+<ol>
+<li>帮助理解 Project 2 的任务要求。</li>
+<li>辅助阅读和整理数据选择相关方法。</li>
+<li>协助设计 Data Agent 的数据处理、训练和部署流程。</li>
+<li>协助排查代码路径、依赖、Gradio UI、代码执行器等工程问题。</li>
+<li>协助 Q2 创业方向 brainstorming。</li>
+<li>协助撰写 InsightPilot AI 的商业计划。</li>
+<li>协助设计支持 100,000 级并发的系统架构。</li>
+<li>协助整理中文报告和 PPT 结构。</li>
+</ol>
+
+<p>所有由 LLM 生成或建议的内容都经过我检查、修改和整合。我对最终提交的代码、报告内容和事实正确性负责。</p>
+
+<h2>3.2 Prompts 记录</h2>
+
+<p>以下为我与 LLM 交互时使用的代表性 prompts。为便于报告呈现，部分对话经过整理，但保留了真实任务意图。</p>
+
+<h3>Prompt 1：项目理解</h3>
+
+<p><strong>Student:</strong></p>
+<p>阅读 Project 2 的 PDF，帮我理解任务要求，并判断我当前代码已经完成了哪些部分，还缺哪些提交材料。</p>
+
+<p><strong>LLM:</strong></p>
+<p>项目包含 Q1 Data Agent System、Q2 Startup Business Plan 和 Presentation。你当前已经完成 Q1 的数据处理、训练脚本和 Gradio demo，但还需要整理报告、PPT、Q2 商业计划和系统架构设计。</p>
+
+<h3>Prompt 2：数据选择方法</h3>
+
+<p><strong>Student:</strong></p>
+<p>我需要阅读 A Survey on Data Selection for Language Models，并选择三个适合数据科学和数学建模领域的数据选择方法。请帮我比较 IFD、InstructMining 和 K-Center Greedy，并说明它们为什么适合 DataMind-12K。</p>
+
+<p><strong>LLM:</strong></p>
+<p>IFD 适合衡量 instruction 与 answer 的依赖关系；InstructMining 适合从多个维度评价轨迹质量；K-Center Greedy 适合保证数据科学任务类型的多样性。三者组合可以形成质量筛选加多样性选择的 pipeline。</p>
+
+<h3>Prompt 3：数据处理代码</h3>
+
+<p><strong>Student:</strong></p>
+<p>请帮我设计 DataMind-12K 的数据处理流程：不能随机采样，要先做质量筛选，再做多样性选择，最终输出 2000 条训练样本和 500 条验证样本，格式适配 Qwen training。</p>
+
+<p><strong>LLM:</strong></p>
+<p>可以先设计 IFD-inspired heuristic score，包括多轮推理、代码使用、工具使用、回答长度、分析词汇和难度标签等特征；然后保留 top 75%；再用 K-Center Greedy 选择 validation 和 training samples；最后输出 ChatML JSONL。</p>
+
+<h3>Prompt 4：训练脚本</h3>
+
+<p><strong>Student:</strong></p>
+<p>请帮我检查 Qwen3.5-0.8B 的 LoRA 微调脚本，确保它使用 Ray Train、assistant-only loss masking、gradient checkpointing，并能保存 checkpoint。</p>
+
+<p><strong>LLM:</strong></p>
+<p>训练脚本应加载 tokenizer 和 base model，使用 PEFT LoRA 配置 target modules，对 ChatML 数据做 assistant-only label masking，用 Ray TorchTrainer 管理训练，并以 validation loss 作为 checkpoint selection 指标。</p>
+
+<h3>Prompt 5：Web Demo 调试</h3>
+
+<p><strong>Student:</strong></p>
+<p>我的 Gradio app 可以生成代码，但 Code Runner 提取不到代码；模型有时输出 <code>&lt;code&gt;</code> 标签，有时输出 markdown code block。请帮我修改提取逻辑。</p>
+
+<p><strong>LLM:</strong></p>
+<p>可以让 <code>extract_code_blocks()</code> 同时支持 Markdown Python code block、普通 Markdown code block 和 <code>&lt;code&gt;...&lt;/code&gt;</code> 三种格式，并使用 <code>textwrap.dedent()</code> 清理缩进。</p>
+
+<h3>Prompt 6：Q2 创业方向</h3>
+
+<p><strong>Student:</strong></p>
+<p>我需要完成一个 LLM startup business plan。请 brainstorm 5 个与 LLM application 相关、适合 indie team 的创业想法，并结合我 Q1 的 Data Agent 项目选择最自然的方向。</p>
+
+<p><strong>LLM:</strong></p>
+<p>可以考虑 AI data analysis assistant、AI business plan writer、AI financial modeling copilot、AI survey/report generator 和 AI no-code ML prediction tool。最适合的是 AI data analysis assistant，因为它与 Q1 技术原型直接相关。</p>
+
+<h3>Prompt 7：竞品分析</h3>
+
+<p><strong>Student:</strong></p>
+<p>请帮我比较 InsightPilot AI 与 ChatGPT Advanced Data Analysis、Julius AI、Hex、Deepnote、ThoughtSpot、Tableau/Power BI、Rows AI、Capalyze 和 Akkio。重点比较优势、弱点和差异化。</p>
+
+<p><strong>LLM:</strong></p>
+<p>这些产品可以分为 general AI chat、no-code AI analysis、technical notebooks、enterprise BI、spreadsheet AI 和 no-code prediction。InsightPilot AI 应重点定位 SME workflow、transparent code、reproducible reports 和 low setup cost。</p>
+
+<h3>Prompt 8：系统架构设计</h3>
+
+<p><strong>Student:</strong></p>
+<p>请为 InsightPilot AI 设计支持 100,000 级并发的工业级系统架构，需要包含 LLM engine、data processing、database、高并发模块、monitoring and operation module，并给出系统架构图。</p>
+
+<p><strong>LLM:</strong></p>
+<p>架构可以包括 CDN/WAF、Load Balancer、API Gateway、stateless microservices、Object Storage、PostgreSQL、Redis、Vector Database、Message Queue、Agent Orchestrator、LLM Gateway、Data Processing Workers、Code Execution Sandbox 和 Monitoring Stack。</p>
+
+<hr/>
+
+<h1>4. 参考文献</h1>
+
+<ol>
+<li>Albalak, A., Elazar, Y., Xie, S. M., Longpre, S., Lambert, N., Wang, X., et al. (2024). *A Survey on Data Selection for Language Models*. TMLR. arXiv:2402.16827.</li>
+<li>Li, M., et al. (2023). *From Quantity to Quality: Boosting LLM Performance with Self-Guided Data Selection for Instruction Tuning*. arXiv:2308.12032.</li>
+<li>Cao, Y., et al. (2023). *Instruction Mining: When Data Mining Meets Large Language Model Finetuning*. arXiv:2307.06290.</li>
+<li>Sener, O., &amp; Savarese, S. (2018). *Active Learning for Convolutional Neural Networks: A Core-Set Approach*. ICLR.</li>
+<li>Qiao, S., et al. (2025). *Scaling Generalist Data-Analytic Agents*. arXiv:2509.25084.</li>
+<li>DataMind-12K repository and dataset documentation.</li>
+<li>Qwen model documentation and HuggingFace model files.</li>
+<li>Ray Train documentation.</li>
+<li>PEFT / LoRA documentation.</li>
+<li>Gradio documentation.</li>
+<li>Cambridge Judge Business School. *How to Write a Business Plan*. https://www.jbs.cam.ac.uk/wp-content/uploads/2020/08/how-to-write-a-business-plan.pdf</li>
+<li>Side Project Guide. https://sideproject.guide/</li>
+<li>Investopedia. *How to Start a Business: Essential Steps and Key Considerations*. https://www.investopedia.com/how-to-start-a-business-7970202</li>
+<li>Product Hunt, Capalyze product page. https://www.producthunt.com/products/capalyze</li>
+<li>Julius AI. *The 10 Best Julius AI Alternatives in 2026*. https://julius.ai/articles/julius-ai-alternatives</li>
+<li>OpenAIToolsHub. *AI Data Analysis Tools Compared*. https://www.openaitoolshub.org/en/blog/ai-data-analysis-tools</li>
+<li>System Design Handbook. *AI System Design: A Complete Guide*. https://www.systemdesignhandbook.com/guides/ai-system-design/</li>
+<li>Donne Martin. *System Design Primer*. https://github.com/donnemartin/system-design-primer</li>
+<li>ByteByteGo. *System Design 101*. https://github.com/ByteByteGoHq/system-design-101</li>
+</ol>
+
+<hr/>
+
+<h1>5. 附录：截图清单与项目结构</h1>
+
+<h2>5.1 已插入截图清单</h2>
+
+<table>
+<tr><th>编号</th><th>内容</th><th>建议文件名</th></tr>
+<tr><td>图 1</td><td>Gradio 首页和模型加载成功状态</td><td><code>picture/1.png</code></td></tr>
+<tr><td>图 2</td><td>上传 <code>sample_sales_data.csv</code> 后的数据预览</td><td><code>picture/2.png</code></td></tr>
+<tr><td>图 3</td><td>自然语言问答与统计分析结果</td><td><code>picture/3.png</code></td></tr>
+<tr><td>图 4</td><td>模型生成 Python 代码，Code Runner 成功提取代码</td><td><code>picture/5.png</code></td></tr>
+<tr><td>图 5</td><td>运行代码后展示 stdout 和图表</td><td><code>picture/6.png</code></td></tr>
+<tr><td>图 6</td><td>Q2 工业级系统架构图</td><td><code>picture/q2_architecture_diagram_imagegen.png</code></td></tr>
+</table>
+
+<h2>5.2 项目文件结构</h2>
+
+<pre><code>Spark_Project2/
+├── qwen_model_local/                  # Qwen3.5-0.8B 基础模型
+└── Hadoop_Project2/
+    ├── app.py                         # Gradio Web UI
+    ├── data_processing.py             # 数据质量评分 + 多样性筛选
+    ├── ifd_scoring.py                 # Model-based IFD 评分
+    ├── deepseek_scoring.py            # DeepSeek API 轨迹评分
+    ├── train.py                       # Ray Train LoRA 微调脚本
+    ├── README.md                      # 项目说明
+    ├── deployment_log.md              # 部署和调试记录
+    ├── Q1_1_Data_Selection_Methods.md # Q1 数据选择方法说明
+    ├── Q2_1_Business_Plan.md          # Q2(1) 商业计划
+    ├── Q2_2_System_Architecture.md    # Q2(2) 系统架构设计
+    ├── REPORT_ZH_DRAFT.md             # 中文报告初稿
+    ├── sample_sales_data.csv          # Demo 测试数据
+    ├── data/
+    │   ├── train_data.jsonl           # 2000 条训练样本
+    │   ├── val_data.jsonl             # 500 条验证样本
+    │   └── selection_report.txt       # 数据选择统计
+    └── output/
+        └── qwen-datamind-lora-v2/
+            └── best_model/
+                ├── adapter_config.json
+                └── adapter_model.safetensors</code></pre>
+
+<h2>5.3 运行命令</h2>
+
+<pre><code># 数据处理
+python data_processing.py
+
+# 可选：DeepSeek API 评分
+python deepseek_scoring.py
+
+# 可选：IFD 模型评分
+python ifd_scoring.py
+
+# LoRA 微调
+python train.py
+
+# 启动 Web Demo
+python app.py</code></pre>
+
+<hr/>
+
+<h2>结论</h2>
+
+<p>本项目完成了从数据选择、模型微调到本地 Web Demo 部署的 Data Agent 原型，并进一步围绕该原型设计了一个可商业化的 LLM startup：InsightPilot AI。Q1 的工程实现展示了 LLM 在数据分析任务中的实际可用性，Q2 的商业计划和系统架构设计则说明该技术如何进一步扩展为面向中小企业的工业级 SaaS 产品。</p></body></html>

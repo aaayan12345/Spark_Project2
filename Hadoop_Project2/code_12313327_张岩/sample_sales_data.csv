@@ -1,0 +1,51 @@
+date,product,category,quantity,unit_price,discount,region,customer_rating
+2025-01-05,MacBook Pro 14,Electronics,1,1999.00,0.00,North,4.5
+2025-01-05,iPhone 16,Electronics,2,899.00,50.00,South,4.0
+2025-01-06,Desk Chair,Furniture,3,249.99,0.00,East,3.5
+2025-01-06,Coffee Maker,Appliances,1,89.99,5.00,West,4.2
+2025-01-07,MacBook Pro 14,Electronics,1,1999.00,100.00,North,4.8
+2025-01-08,Monitor 27",Electronics,2,349.99,0.00,South,4.1
+2025-01-08,Standing Desk,Furniture,1,599.00,30.00,West,
+2025-01-09,Mechanical Keyboard,Electronics,4,149.99,20.00,East,4.6
+2025-01-10,iPhone 16,Electronics,1,899.00,0.00,North,4.3
+2025-01-10,Coffee Maker,Appliances,2,89.99,0.00,South,3.9
+2025-01-11,Desk Chair,Furniture,2,249.99,15.00,West,3.2
+2025-01-12,Monitor 27",Electronics,3,349.99,50.00,East,4.7
+2025-01-13,MacBook Pro 14,Electronics,1,1999.00,0.00,North,5.0
+2025-01-14,Air Purifier,Appliances,1,199.99,0.00,South,4.1
+2025-01-15,Standing Desk,Furniture,1,599.00,0.00,West,3.8
+2025-01-16,iPhone 16,Electronics,3,899.00,150.00,East,4.4
+2025-01-17,Mechanical Keyboard,Electronics,2,149.99,10.00,North,4.9
+2025-01-18,Coffee Maker,Appliances,1,89.99,0.00,South,3.7
+2025-01-19,Desk Chair,Furniture,1,249.99,0.00,West,4.0
+2025-01-20,Monitor 27",Electronics,1,349.99,0.00,East,4.5
+2025-01-22,MacBook Pro 14,Electronics,2,1999.00,200.00,North,4.6
+2025-01-23,Air Purifier,Appliances,2,199.99,10.00,South,4.3
+2025-01-24,Mechanical Keyboard,Electronics,1,149.99,0.00,West,4.7
+2025-01-25,iPhone 16,Electronics,1,899.00,0.00,East,
+2025-01-26,Standing Desk,Furniture,2,599.00,60.00,North,4.1
+2025-01-27,Coffee Maker,Appliances,3,89.99,15.00,South,3.8
+2025-01-28,Desk Chair,Furniture,1,249.99,0.00,West,3.9
+2025-01-29,MacBook Pro 14,Electronics,1,1999.00,0.00,East,4.9
+2025-01-30,Monitor 27",Electronics,2,349.99,25.00,North,4.2
+2025-02-01,Air Purifier,Appliances,1,199.99,0.00,South,4.0
+2025-02-02,Mechanical Keyboard,Electronics,3,149.99,30.00,West,4.8
+2025-02-03,iPhone 16,Electronics,2,899.00,100.00,East,4.4
+2025-02-04,Standing Desk,Furniture,1,599.00,0.00,North,3.6
+2025-02-05,Coffee Maker,Appliances,1,89.99,0.00,South,4.5
+2025-02-06,Desk Chair,Furniture,2,249.99,20.00,West,3.3
+2025-02-07,MacBook Pro 14,Electronics,1,1999.00,0.00,East,4.7
+2025-02-08,Monitor 27",Electronics,1,349.99,0.00,North,4.1
+2025-02-09,Air Purifier,Appliances,2,199.99,15.00,South,4.4
+2025-02-10,Mechanical Keyboard,Electronics,1,149.99,0.00,West,4.6
+2025-02-12,iPhone 16,Electronics,1,899.00,0.00,East,4.3
+2025-02-13,Standing Desk,Furniture,2,599.00,50.00,North,3.9
+2025-02-14,Coffee Maker,Appliances,1,89.99,0.00,South,4.8
+2025-02-15,Desk Chair,Furniture,1,249.99,0.00,West,4.0
+2025-02-17,MacBook Pro 14,Electronics,1,1999.00,100.00,East,4.5
+2025-02-18,Monitor 27",Electronics,2,349.99,0.00,North,4.2
+2025-02-19,Air Purifier,Appliances,1,199.99,0.00,South,4.1
+2025-02-20,Mechanical Keyboard,Electronics,4,149.99,40.00,West,4.7
+2025-02-21,iPhone 16,Electronics,1,899.00,0.00,East,4.5
+2025-02-22,Standing Desk,Furniture,1,599.00,0.00,North,
+2025-02-24,Coffee Maker,Appliances,2,89.99,10.00,South,3.8

@@ -1,0 +1,17 @@
+============================================================
+DataMind-12K Selection Report
+Methods: IFD-inspired Quality Filter + K-Center Greedy
+============================================================
+
+Training Set:
+  Samples: 2000
+  Words: avg=1771, range=[982, 4062]
+  Turns: avg=10.0, range=[5, 23]
+  Levels: {'N/A': 976, 'easy': 538, 'Highly Complex': 370, 'Moderate': 67, 'Simple': 41, 'Complex': 8}
+
+Validation Set:
+  Samples: 500
+  Words: avg=1858, range=[1024, 4172]
+  Turns: avg=10.5, range=[5, 21]
+  Levels: {'N/A': 226, 'Highly Complex': 131, 'easy': 95, 'Simple': 20, 'Moderate': 20, 'Complex': 8}
+
